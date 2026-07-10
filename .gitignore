@@ -1,0 +1,6 @@
+.DS_Store
+__MACOSX/
+/.venv/
+/artifacts/
+__pycache__/
+*.pyc
