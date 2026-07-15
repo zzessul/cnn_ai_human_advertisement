@@ -109,3 +109,15 @@ python predict_user_model.py "/path/to/image.jpg" \
 
 결과 폴더에는 모델(`best_model.pth`), 데이터 점검 결과(`data_audit.json`),
 테스트 지표(`metrics.json`), 재현 가능한 테스트 목록(`test_manifest.json`)이 저장됩니다.
+
+## A-B 데이터 통합 재학습 결과
+
+- 기존 B 학습 데이터 고유 이미지: 인간 153장, AI 149장
+- A에서 B와 겹치지 않는 신규 이미지: 인간 101장, AI 79장
+- 최종 중복 제거 데이터: 인간 254장, AI 228장, 총 482장
+- 검증 최고 정확도: 72.2%
+- 독립 테스트 정확도: 69.9% (51/73)
+- 혼동행렬: `[[26, 12], [10, 25]]`
+
+정리된 이미지는 `datasets/organized_combined/`에 있으며,
+`organize_datasets.py`로 SHA-256 완전 중복과 dHash 유사 중복을 제거할 수 있습니다.
