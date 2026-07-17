@@ -1,6 +1,11 @@
 .DS_Store
 __MACOSX/
 /.venv/
-/artifacts/
+/artifacts/*
+!/artifacts/advanced_ensemble/
+!/artifacts/advanced_ensemble/metrics.json
+!/artifacts/advanced_ensemble/best_ensemble.joblib
+/artifacts/advanced_ensemble/*_embeddings.npz
+/datasets/
 __pycache__/
 *.pyc

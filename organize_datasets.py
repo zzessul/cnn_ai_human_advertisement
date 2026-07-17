@@ -16,6 +16,17 @@ def normalized_name(path: Path) -> str:
     return unicodedata.normalize("NFC", path.name).replace(" ", "")
 
 
+def infer_category(path: Path) -> str:
+    names = [normalized_name(parent) for parent in path.parents]
+    if any("모델(사람)광고" in name for name in names):
+        return "model"
+    if any("제품광고" in name for name in names):
+        return "product"
+    if any("캐릭터광고" in name for name in names):
+        return "character"
+    return "legacy"
+
+
 def class_directories(root: Path):
     for path in root.rglob("*"):
         if not path.is_dir():
@@ -25,6 +36,21 @@ def class_directories(root: Path):
             yield path, 1
         elif name in {"인간", "인간광고", "캐릭터"}:
             yield path, 0
+
+
+def nearest_label(path: Path, root: Path):
+    """파일에서 가장 가까운(최하위) 라벨 폴더를 우선한다."""
+    for parent in path.parents:
+        if parent == root.parent:
+            break
+        name = normalized_name(parent)
+        if name in {"AI", "AI광고"}:
+            return 1
+        if name in {"인간", "인간광고", "캐릭터"}:
+            return 0
+        if parent == root:
+            break
+    return None
 
 
 def sha256(path: Path) -> str:
@@ -54,25 +80,29 @@ def hamming(left: int, right: int) -> int:
 
 def collect(root: Path, source: str):
     records, invalid, excluded = [], [], []
-    for folder, label in class_directories(root):
-        for path in sorted(folder.iterdir()):
-            if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
-                continue
-            if "contact_sheet" in path.name.lower():
-                excluded.append(str(path))
-                continue
-            try:
-                with Image.open(path) as image:
-                    image.verify()
-                records.append({
-                    "path": path,
-                    "label": label,
-                    "source": source,
-                    "sha256": sha256(path),
-                    "dhash": dhash(path),
-                })
-            except (OSError, UnidentifiedImageError):
-                invalid.append(str(path))
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
+            continue
+        label = nearest_label(path, root)
+        if label is None:
+            excluded.append(str(path))
+            continue
+        if "contact_sheet" in path.name.lower():
+            excluded.append(str(path))
+            continue
+        try:
+            with Image.open(path) as image:
+                image.verify()
+            records.append({
+                "path": path,
+                "label": label,
+                "source": source,
+                "category": infer_category(path),
+                "sha256": sha256(path),
+                "dhash": dhash(path),
+            })
+        except (OSError, UnidentifiedImageError):
+            invalid.append(str(path))
     return records, invalid, excluded
 
 
@@ -109,18 +139,19 @@ def copy_records(records, output: Path):
     for folder in CLASS_NAMES:
         (output / folder).mkdir(parents=True, exist_ok=True)
     manifest = []
-    counters = {(source, label): 0 for source in ("B_original", "A_minus_B") for label in range(2)}
+    counters = {}
     for record in records:
-        key = record["source"], record["label"]
-        counters[key] += 1
+        key = record["source"], record["category"], record["label"]
+        counters[key] = counters.get(key, 0) + 1
         suffix = record["path"].suffix.lower()
-        filename = f"{record['source']}_{counters[key]:04d}{suffix}"
+        filename = f"{record['source']}_{record['category']}_{counters[key]:04d}{suffix}"
         destination = output / CLASS_NAMES[record["label"]] / filename
         shutil.copy2(record["path"], destination)
         manifest.append({
             "file": str(destination.relative_to(output)),
             "label": CLASS_NAMES[record["label"]],
             "source": record["source"],
+            "category": record["category"],
             "sha256": record["sha256"],
         })
     return manifest
